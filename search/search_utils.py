@@ -1,15 +1,15 @@
 from abc import ABC, abstractmethod
 from typing import Generic, TypeVar, Union
 
-TState = TypeVar("TState")
+_TState = TypeVar("_TState")
 
 
-class AbstractNode(ABC, Generic[TState]):
+class AbstractNode(ABC, Generic[_TState]):
     def __init__(
         self,
         action: str,
-        state: TState,
-        parent: Union[TState, None] = None,
+        state: _TState,
+        parent: Union[_TState, None] = None,
     ) -> None:
         super().__init__()
 
@@ -44,7 +44,7 @@ def reconstruct_path(goal: AbstractNode):
     return path[::-1]
 
 
-class AbstractFrontier(ABC, Generic[TState]):
+class AbstractFrontier(ABC, Generic[_TState]):
     @abstractmethod
     def add(self, state: AbstractNode) -> None:
         pass
@@ -59,11 +59,11 @@ class AbstractFrontier(ABC, Generic[TState]):
         pass
 
     @abstractmethod
-    def _has_state(self, state: TState) -> bool:
+    def _has_state(self, state: _TState) -> bool:
         pass
 
 
-class StackFrontier(AbstractFrontier[TState]):
+class StackFrontier(AbstractFrontier[_TState]):
     def __init__(self) -> None:
         super().__init__()
 
@@ -88,11 +88,11 @@ class StackFrontier(AbstractFrontier[TState]):
     def remove(self):
         return self.frontier.pop()
 
-    def _has_state(self, state: TState):
+    def _has_state(self, state: _TState):
         return any(node.state == state for node in self.frontier)
 
 
-class QueueFrontier(StackFrontier[TState]):
+class QueueFrontier(StackFrontier[_TState]):
     def __init__(self) -> None:
         super().__init__()
 
