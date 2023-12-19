@@ -1,5 +1,7 @@
 from abc import ABC, abstractmethod
-from typing import Generic, TypeVar, Union
+from typing import Generic, NamedTuple, TypeVar, Union
+
+from graphviz import Digraph
 
 _TState = TypeVar("_TState")
 
@@ -24,7 +26,69 @@ class AbstractNode(ABC, Generic[_TState]):
         return self.__repr__()
 
 
-def reconstruct_path(goal: AbstractNode):
+class AbstractFrontier(ABC, Generic[_TState]):
+    def __init__(self) -> None:
+        super().__init__()
+
+        self.frontier: list[AbstractNode] = []
+
+    def __len__(self):
+        return len(self.frontier)
+
+    def __contains__(self, __obj: object) -> bool:
+        if not isinstance(__obj, AbstractNode):
+            return False
+
+        return self.has_state(__obj)
+
+    @property
+    def is_empty(self):
+        return len(self) == 0
+
+    @abstractmethod
+    def add(self, state: AbstractNode[_TState]) -> None:
+        pass
+
+    @abstractmethod
+    def remove(self) -> AbstractNode[_TState]:
+        pass
+
+    @abstractmethod
+    def _has_state(self, state: _TState) -> bool:
+        pass
+
+
+class StackFrontier(AbstractFrontier[_TState]):
+    def __init__(self) -> None:
+        super().__init__()
+
+    def add(self, node: AbstractNode[_TState]):
+        return self.frontier.append(node)
+
+    def remove(self):
+        return self.frontier.pop()
+
+    def _has_state(self, state: _TState):
+        return any(node.state == state for node in self.frontier)
+
+
+class QueueFrontier(StackFrontier[_TState]):
+    def __init__(self) -> None:
+        super().__init__()
+
+    def remove(self):
+        return self.frontier.pop(0)
+
+
+class Edge(NamedTuple):
+    source: AbstractNode[_TState]
+    dest: AbstractNode[_TState]
+
+    def __hash__(self) -> int:
+        return hash(id(self))
+
+
+def reconstruct_path(goal: AbstractNode[_TState]):
     r"""
     Reconstructs the path from the goal node to the initial node
 
@@ -44,57 +108,41 @@ def reconstruct_path(goal: AbstractNode):
     return path[::-1]
 
 
-class AbstractFrontier(ABC, Generic[_TState]):
-    @abstractmethod
-    def add(self, state: AbstractNode) -> None:
-        pass
+def trace_graph(goal: AbstractNode[_TState]):
+    nodes, edges = set[AbstractNode[_TState]](), set[Edge]()
 
-    @abstractmethod
-    def remove(self) -> AbstractNode:
-        pass
+    def build(v: AbstractNode[_TState]):
+        if v not in nodes:
+            nodes.add(v)
 
-    @property
-    @abstractmethod
-    def is_empty(self) -> bool:
-        pass
+            if v.parent is not None:
+                edges.add(Edge(source=v.parent, dest=v))
+                build(v.parent)
 
-    @abstractmethod
-    def _has_state(self, state: _TState) -> bool:
-        pass
+    build(goal)
+
+    return nodes, edges
 
 
-class StackFrontier(AbstractFrontier[_TState]):
-    def __init__(self) -> None:
-        super().__init__()
+def draw_path(goal: AbstractNode[_TState]):
+    dot = Digraph(format="svg", graph_attr={"rankdir": "TB"})
+    nodes, edges = trace_graph(goal)
 
-        self.frontier: list[AbstractNode] = []
+    for node in nodes:
+        uid = str(id(node))
+        # for any value in the graph, create a rectangular ('record') node for it
+        dot.node(name=uid, label="{ %s }" % (node.state,), shape="record")
 
-    def __len__(self) -> int:
-        return len(self.frontier)
+        if node.action:
+            # if this node is the result of some action, create an action node for it
+            action_uid = uid + node.action
+            dot.node(name=action_uid, label=node.action)
 
-    def __contains__(self, __obj: object) -> bool:
-        if not isinstance(__obj, AbstractNode):
-            return False
+            # and connect this node to it
+            dot.edge(action_uid, uid)
 
-        return self.has_state(__obj)
+    for edge in edges:
+        # connect node1 to the operation of node2
+        dot.edge(str(id(edge.source)), str(id(edge.dest)) + edge.dest.action)
 
-    @property
-    def is_empty(self):
-        return len(self) == 0
-
-    def add(self, node: AbstractNode):
-        return self.frontier.append(node)
-
-    def remove(self):
-        return self.frontier.pop()
-
-    def _has_state(self, state: _TState):
-        return any(node.state == state for node in self.frontier)
-
-
-class QueueFrontier(StackFrontier[_TState]):
-    def __init__(self) -> None:
-        super().__init__()
-
-    def remove(self):
-        return self.frontier.pop(0)
+    return dot
