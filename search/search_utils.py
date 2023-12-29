@@ -1,9 +1,16 @@
+"""
+This module contains many utilities used to solve the search problems
+defined in this folder. The main parts are the :class:`AbstractNode` and AbstractFrontier
+classes, as well as the reconstruct_path and draw_path methods
+"""
+
 from abc import ABC, abstractmethod
-from typing import Generic, NamedTuple, TypeVar, Union
+from typing import Generic, Literal, NamedTuple, TypeVar, Union
 
 from graphviz import Digraph
 
 _TState = TypeVar("_TState")
+Rankdir = Literal["LR", "RL", "TB", "BT"]
 
 
 class AbstractNode(ABC, Generic[_TState]):
@@ -36,10 +43,10 @@ class AbstractFrontier(ABC, Generic[_TState]):
         return len(self.frontier)
 
     def __contains__(self, __obj: object) -> bool:
-        if not isinstance(__obj, AbstractNode):
+        if not issubclass(__obj.__class__, AbstractNode):
             return False
 
-        return self.has_state(__obj)
+        return any(node.state == __obj for node in self.frontier)
 
     @property
     def is_empty(self):
@@ -53,10 +60,6 @@ class AbstractFrontier(ABC, Generic[_TState]):
     def remove(self) -> AbstractNode[_TState]:
         pass
 
-    @abstractmethod
-    def _has_state(self, state: _TState) -> bool:
-        pass
-
 
 class StackFrontier(AbstractFrontier[_TState]):
     def __init__(self) -> None:
@@ -67,9 +70,6 @@ class StackFrontier(AbstractFrontier[_TState]):
 
     def remove(self):
         return self.frontier.pop()
-
-    def _has_state(self, state: _TState):
-        return any(node.state == state for node in self.frontier)
 
 
 class QueueFrontier(StackFrontier[_TState]):
@@ -124,8 +124,8 @@ def trace_graph(goal: AbstractNode[_TState]):
     return nodes, edges
 
 
-def draw_path(goal: AbstractNode[_TState]):
-    dot = Digraph(format="svg", graph_attr={"rankdir": "TB"})
+def draw_path(goal: AbstractNode[_TState], rankdir: Rankdir = "TB"):
+    dot = Digraph(format="svg", graph_attr={"rankdir": rankdir})
     nodes, edges = trace_graph(goal)
 
     for node in nodes:
@@ -143,6 +143,9 @@ def draw_path(goal: AbstractNode[_TState]):
 
     for edge in edges:
         # connect node1 to the operation of node2
-        dot.edge(str(id(edge.source)), str(id(edge.dest)) + edge.dest.action)
+        dot.edge(
+            str(id(edge.source)),
+            str(id(edge.dest)) + edge.dest.action,
+        )
 
     return dot
